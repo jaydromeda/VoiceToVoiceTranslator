@@ -5,6 +5,98 @@ from rvc import Config, load_hubert, get_vc, rvc_infer
 import gc , os, sys, argparse, requests
 from pathlib import Path
 
+
+
+"""#GOOGLE SPEECH TO TEXT
+from google.cloud import speech
+
+
+def speech_to_text(
+    config: speech.RecognitionConfig,
+    audio: speech.RecognitionAudio,
+) -> speech.RecognizeResponse:
+    client = speech.SpeechClient()
+
+    # Synchronous speech recognition request
+    response = client.recognize(config=config, audio=audio)
+
+    return response
+
+
+def print_response(response: speech.RecognizeResponse):
+    for result in response.results:
+        print_result(result)
+
+
+def print_result(result: speech.SpeechRecognitionResult):
+    best_alternative = result.alternatives[0]
+    print("-" * 80)
+    print(f"language_code: {result.language_code}")
+    print(f"transcript:    {best_alternative.transcript}")
+    print(f"confidence:    {best_alternative.confidence:.0%}")
+    
+# Load local audio file as bytes
+with open("./output.wav", "rb") as audio_file:
+    audio_content = audio_file.read()
+
+# Configure the recognition settings
+config = speech.RecognitionConfig(
+    encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
+    sample_rate_hertz=22050,  # Match your TTS output sample rate if different
+    language_code="en-US",
+)
+
+audio = speech.RecognitionAudio(content=audio_content)
+
+response = speech_to_text(config, audio)
+print_response(response)
+# Load local audio file as bytes
+with open("./output.wav", "rb") as audio_file:
+    audio_content = audio_file.read()
+
+# Configure the recognition settings
+config = speech.RecognitionConfig(
+    encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
+    sample_rate_hertz=22050,  # Match your TTS output sample rate if different
+    language_code="en-US",
+)
+
+audio = speech.RecognitionAudio(content=audio_content)
+
+response = speech_to_text(config, audio)
+print_response(response)
+
+"""
+
+
+import speech_recognition as sr
+
+def recognize_local_audio(file_path, rvc_file):
+    recognizer = sr.Recognizer()
+
+    try:
+        with sr.AudioFile(file_path) as source:
+            audio_data = recognizer.record(source)
+        text1 = recognizer.recognize_google(audio_data)
+        print("Transcript:", text1)
+    except sr.UnknownValueError:
+        text1 = "Could not understand original audio."
+    except sr.RequestError as e:
+        text1 = f"API error (original): {e}"
+
+    try:
+        with sr.AudioFile(rvc_file) as source:
+            audio_data = recognizer.record(source)
+        text2 = recognizer.recognize_google(audio_data)
+        print("RVC Transcript:", text2)
+    except sr.UnknownValueError:
+        text2 = "Could not understand RVC audio."
+    except sr.RequestError as e:
+        text2 = f"API error (RVC): {e}"
+
+    return text1, text2
+
+
 parser = argparse.ArgumentParser(
 	prog='XTTS-RVC-UI',
 	description='Gradio UI for XTTSv2 and RVC'
@@ -80,6 +172,13 @@ def main():
 				refresh_button = gr.Button(value='Refresh')
 				text_input = gr.Textbox(placeholder="Write here...")
 				submit_button = gr.Button(value='Submit')
+				transcribe_button = gr.Button(value="Transcribe Output")
+				transcript_output_1 = gr.Textbox(label="Transcript 1", interactive=False)
+				transcript_output_2 = gr.Textbox(label="Transcript 2 (RVC)", interactive=False)
+
+				hidden_path_1 = gr.Textbox(value="./output.wav", visible=False)
+				hidden_path_2 = gr.Textbox(value="./outputrvc.wav", visible=False)
+
 				with gr.Row():
 					pitch_slider = gr.Slider(minimum=-12, maximum=12, value=0, step=1, label="Pitch")
 					index_rate_slider = gr.Slider(minimum=0, maximum=1, value=0.75, step=0.05, label="Index Rate")
@@ -88,6 +187,13 @@ def main():
 				rvc_audio_output = gr.Audio(label="RVC result", type="filepath", interactive=False)
 
 		submit_button.click(inputs=[rvc_dropdown, voice_dropdown, text_input, pitch_slider, index_rate_slider, lang_dropdown], outputs=[audio_output, rvc_audio_output], fn=runtts)
+		transcribe_button.click(
+    		fn=recognize_local_audio,
+    		inputs=[hidden_path_1, hidden_path_2],
+    		outputs=[transcript_output_1, transcript_output_2]
+			)
+
+
 		def refresh_dropdowns():
 			get_rvc_voices()
 			print('Refreshed voice and RVC list!')
@@ -96,6 +202,8 @@ def main():
 		refresh_button.click(fn=refresh_dropdowns, outputs=[rvc_dropdown, voice_dropdown])
 
 	interface.launch(server_name="127.0.0.1", server_port=5000, quiet=True)
+
+
 
 # delete later
 
